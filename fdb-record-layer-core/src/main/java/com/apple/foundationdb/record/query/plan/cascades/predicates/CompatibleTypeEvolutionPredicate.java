@@ -164,7 +164,7 @@ public class CompatibleTypeEvolutionPredicate extends AbstractQueryPredicate imp
     @SpotBugsSuppressWarnings("EQ_UNUSUAL")
     @Override
     public boolean equals(final Object other) {
-        return semanticEquals(other, AliasMap.emptyMap());
+        return semanticEquals(other, AliasMap.identitiesFor(getCorrelatedTo()));
     }
 
     @Nonnull

@@ -20,7 +20,6 @@
 
 package com.apple.foundationdb.record.query.combinatorics;
 
-import com.apple.foundationdb.record.query.plan.cascades.debug.Debugger;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Verify;
@@ -294,7 +293,7 @@ public class PartiallyOrderedSet<T> {
         }
 
         public EligibleSet<T> removeEligibleElements(@Nonnull final Set<T> toBeRemovedEligibleElements) {
-            Debugger.sanityCheck(() -> Preconditions.checkArgument(eligibleElements().containsAll(toBeRemovedEligibleElements)));
+            Preconditions.checkArgument(eligibleElements().containsAll(toBeRemovedEligibleElements));
 
             final var set = partiallyOrderedSet.getSet();
             final var newSetBuilder = ImmutableSet.<T>builder();

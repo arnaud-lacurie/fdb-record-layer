@@ -143,7 +143,7 @@ public class VariadicFunctionValue extends AbstractValue {
     @SpotBugsSuppressWarnings("EQ_UNUSUAL")
     @Override
     public boolean equals(final Object other) {
-        return semanticEquals(other, AliasMap.emptyMap());
+        return semanticEquals(other, AliasMap.identitiesFor(getCorrelatedTo()));
     }
 
     @Nonnull

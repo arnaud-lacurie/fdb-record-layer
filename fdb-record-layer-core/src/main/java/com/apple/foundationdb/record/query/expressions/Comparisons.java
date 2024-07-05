@@ -1299,7 +1299,14 @@ public class Comparisons {
         @SpotBugsSuppressWarnings("EQ_UNUSUAL")
         @SuppressWarnings("EqualsWhichDoesntCheckParameterClass")
         public boolean equals(Object o) {
-            return semanticEquals(o, AliasMap.emptyMap());
+            final AliasMap aliasMap;
+            if (isCorrelation()) {
+                final var alias = CorrelationIdentifier.of(Bindings.Internal.CORRELATION.identifier(parameter));
+                aliasMap = AliasMap.identitiesFor(ImmutableSet.of(alias));
+            } else {
+                aliasMap = AliasMap.emptyMap();
+            }
+            return semanticEquals(o, aliasMap);
         }
 
         @Override
@@ -1550,7 +1557,7 @@ public class Comparisons {
         @SpotBugsSuppressWarnings("EQ_UNUSUAL")
         @SuppressWarnings("EqualsWhichDoesntCheckParameterClass")
         public boolean equals(Object o) {
-            return semanticEquals(o, AliasMap.emptyMap());
+            return semanticEquals(o, AliasMap.identitiesFor(comparandValue.getCorrelatedTo()));
         }
 
         @Override
@@ -2657,7 +2664,7 @@ public class Comparisons {
         @SpotBugsSuppressWarnings("EQ_UNUSUAL")
         @SuppressWarnings("EqualsWhichDoesntCheckParameterClass")
         public boolean equals(final Object o) {
-            return semanticEquals(o, AliasMap.emptyMap());
+            return semanticEquals(o, AliasMap.identitiesFor(inner.getCorrelatedTo()));
         }
 
         @Override

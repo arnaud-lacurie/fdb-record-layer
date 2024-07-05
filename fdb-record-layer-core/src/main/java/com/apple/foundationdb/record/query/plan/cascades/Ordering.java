@@ -47,7 +47,6 @@ import com.google.common.collect.Streams;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -651,29 +650,16 @@ public class Ordering {
     @Nonnull
     public static PartiallyOrderedSet<Value> normalizeOrderingSet(@Nonnull final SetMultimap<Value, Binding> bindingMap,
                                                                   @Nonnull final PartiallyOrderedSet<Value> orderingSet) {
+        final var transitiveClosure = orderingSet.getTransitiveClosure();
         final var normalizedDependencyMapBuilder = ImmutableSetMultimap.<Value, Value>builder();
-        final var dependencyMap = orderingSet.getDependencyMap().asMap();
-        for (final var dependencySetEntry : dependencyMap.entrySet()) {
-            //
-            // If the current value is not fixed check its dependencies, completely skip the dependency if this value
-            // is fixed.
-            //
-            if (!areAllBindingsFixed(Objects.requireNonNull(bindingMap.get(dependencySetEntry.getKey())))) {
-                // follow all dependencies to values that are not fixed anymore
-                final var toBeProcessed = new ArrayDeque<>(dependencySetEntry.getValue());
-                while (!toBeProcessed.isEmpty()) {
-                    final var dependentValue = toBeProcessed.removeFirst();
-                    if (!areAllBindingsFixed(Objects.requireNonNull(bindingMap.get(dependentValue)))) {
-                        // add a direct dependency from the original value to this one
-                        normalizedDependencyMapBuilder.put(dependencySetEntry.getKey(), dependentValue);
-                    } else {
-                        // this one is fixed; we have to skip it and look at its dependencies as well
-                        final var transitivelyDependentValues = dependencyMap.get(dependentValue);
-                        if (transitivelyDependentValues != null) {
-                            toBeProcessed.addAll(transitivelyDependentValues);
-                        }
-                    }
-                }
+
+        for (final var dependency : transitiveClosure.entries()) {
+            Verify.verify(bindingMap.containsKey(dependency.getKey()));
+            Verify.verify(bindingMap.containsKey(dependency.getValue()));
+            final boolean isFixed = areAllBindingsFixed(bindingMap.get(dependency.getKey())) ||
+                    areAllBindingsFixed(bindingMap.get(dependency.getValue()));
+            if (!isFixed) {
+                normalizedDependencyMapBuilder.put(dependency);
             }
         }
         return PartiallyOrderedSet.of(orderingSet.getSet(), normalizedDependencyMapBuilder.build());

@@ -113,7 +113,7 @@ public class Placeholder extends PredicateWithValueAndRanges implements WithAlia
     @SpotBugsSuppressWarnings("EQ_UNUSUAL")
     @Override
     public boolean equals(final Object other) {
-        if (!super.semanticEquals(other, AliasMap.emptyMap())) {
+        if (!super.semanticEquals(other, AliasMap.identitiesFor(getCorrelatedTo()))) {
             return false;
         }
         if (!(other instanceof Placeholder)) {
