@@ -162,14 +162,6 @@ public class OrderingPart<S extends OrderingPart.SortOrder> {
          */
         DESCENDING("↓"),
         /**
-         * Ascending but with nulls after regular values.
-         */
-        ASCENDING_NULLS_LAST("↗"),
-        /**
-         * Descending but with nulls before regular values.
-         */
-        DESCENDING_NULLS_FIRST("↙"),
-        /**
          * Fixed sort order which indicates that something restrict records to only ever be of exactly one value.
          */
         FIXED("="),
@@ -201,45 +193,22 @@ public class OrderingPart<S extends OrderingPart.SortOrder> {
             if (this == FIXED) {
                 throw new RecordCoreException("cannot determine if this is reverse or not");
             }
-            return this == DESCENDING || this == DESCENDING_NULLS_FIRST;
+            return this == DESCENDING;
         }
 
         @Override
         public boolean isDirectional() {
-            return this != FIXED;
-        }
-
-        public boolean isAscending() {
-            return this == ASCENDING || this == ASCENDING_NULLS_LAST;
-        }
-
-        public boolean isDescending() {
-            return this == DESCENDING || this == DESCENDING_NULLS_FIRST;
-        }
-
-        public boolean isNullsFirst() {
-            return this == ASCENDING || this == DESCENDING_NULLS_FIRST;
-        }
-
-        public boolean isNullsLast() {
-            return this == DESCENDING || this == ASCENDING_NULLS_LAST;
-        }
-
-        public boolean isCounterflowNulls() {
-            return this == ASCENDING_NULLS_LAST || this == DESCENDING_NULLS_FIRST;
+            return this == ASCENDING || this == DESCENDING || this == CHOOSE;
         }
 
         @SuppressWarnings("BooleanMethodIsAlwaysInverted")
         public boolean isCompatibleWithRequestedSortOrder(@Nonnull final RequestedSortOrder requestedSortOrder) {
-            if (requestedSortOrder == RequestedSortOrder.ANY || this == CHOOSE || this == FIXED) {
+            if (requestedSortOrder == RequestedSortOrder.ANY || this == CHOOSE || !isDirectional()) {
                 return true;
             }
 
-            if (isCounterflowNulls() != requestedSortOrder.isCounterflowNulls()) {
-                return false;
-            }
-
-            return this.isAscending() == requestedSortOrder.isAscending();
+            return this == ASCENDING && requestedSortOrder == RequestedSortOrder.ASCENDING ||
+                    this == DESCENDING && requestedSortOrder == RequestedSortOrder.DESCENDING;
         }
 
         public RequestedSortOrder toRequestedSortOrder() {
@@ -248,10 +217,6 @@ public class OrderingPart<S extends OrderingPart.SortOrder> {
                     return RequestedSortOrder.ASCENDING;
                 case DESCENDING:
                     return RequestedSortOrder.DESCENDING;
-                case ASCENDING_NULLS_LAST:
-                    return RequestedSortOrder.ASCENDING_NULLS_LAST;
-                case DESCENDING_NULLS_FIRST:
-                    return RequestedSortOrder.DESCENDING_NULLS_FIRST;
                 default:
                     throw new RecordCoreException("cannot translate this sort order to requested sort order");
             }
@@ -334,14 +299,6 @@ public class OrderingPart<S extends OrderingPart.SortOrder> {
          */
         DESCENDING("↓"),
         /**
-         * Ascending but with nulls after regular values.
-         */
-        ASCENDING_NULLS_LAST("↗"),
-        /**
-         * Descending but with nulls before regular values.
-         */
-        DESCENDING_NULLS_FIRST("↙"),
-        /**
          * Any ordering. This requested ordering still needs an actual produced order that can either be ascending or
          * descending. It cannot be unordered.
          */
@@ -372,26 +329,6 @@ public class OrderingPart<S extends OrderingPart.SortOrder> {
             return this == ASCENDING || this == DESCENDING;
         }
 
-        public boolean isAscending() {
-            return this == ASCENDING || this == ASCENDING_NULLS_LAST;
-        }
-
-        public boolean isDescending() {
-            return this == DESCENDING || this == DESCENDING_NULLS_FIRST;
-        }
-
-        public boolean isNullsFirst() {
-            return this == ASCENDING || this == DESCENDING_NULLS_FIRST;
-        }
-
-        public boolean isNullsLast() {
-            return this == DESCENDING || this == ASCENDING_NULLS_LAST;
-        }
-
-        public boolean isCounterflowNulls() {
-            return this == ASCENDING_NULLS_LAST || this == DESCENDING_NULLS_FIRST;
-        }
-
         @Nonnull
         public static RequestedSortOrder fromIsReverse(final boolean isReverse) {
             return isReverse ? DESCENDING : ASCENDING;
@@ -404,10 +341,6 @@ public class OrderingPart<S extends OrderingPart.SortOrder> {
                     return ProvidedSortOrder.ASCENDING;
                 case DESCENDING:
                     return ProvidedSortOrder.DESCENDING;
-                case ASCENDING_NULLS_LAST:
-                    return ProvidedSortOrder.ASCENDING_NULLS_LAST;
-                case DESCENDING_NULLS_FIRST:
-                    return ProvidedSortOrder.DESCENDING_NULLS_FIRST;
                 default:
                     throw new RecordCoreException("cannot translate this sort order to provided sort order");
             }

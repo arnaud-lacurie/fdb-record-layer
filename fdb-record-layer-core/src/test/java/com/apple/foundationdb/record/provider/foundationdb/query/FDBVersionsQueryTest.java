@@ -571,7 +571,7 @@ public class FDBVersionsQueryTest extends FDBRecordStoreQueryTestBase {
                 outerGraphBuilder.addResultValue(FieldValue.ofFieldName(innerSelect.getFlowedObjectValue(), "number"));
                 var select = Quantifier.forEach(Reference.of(outerGraphBuilder.build().buildSelect()));
 
-                return Reference.of(LogicalSortExpression.unsorted(select));
+                return Reference.of(new LogicalSortExpression(List.of(), false, select));
             }, Optional.empty(), IndexQueryabilityFilter.DEFAULT, EvaluationContext.empty()).getPlan();
 
             assertMatchesExactly(plan, mapPlan(

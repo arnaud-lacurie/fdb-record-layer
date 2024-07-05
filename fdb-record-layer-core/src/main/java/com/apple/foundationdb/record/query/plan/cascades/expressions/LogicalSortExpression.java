@@ -23,23 +23,21 @@ package com.apple.foundationdb.record.query.plan.cascades.expressions;
 import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.query.plan.cascades.AliasMap;
 import com.apple.foundationdb.record.query.plan.cascades.CorrelationIdentifier;
-import com.apple.foundationdb.record.query.plan.cascades.OrderingPart;
 import com.apple.foundationdb.record.query.plan.cascades.Quantifier;
-import com.apple.foundationdb.record.query.plan.cascades.RequestedOrdering;
+import com.apple.foundationdb.record.query.plan.cascades.values.translation.TranslationMap;
 import com.apple.foundationdb.record.query.plan.cascades.explain.Attribute;
 import com.apple.foundationdb.record.query.plan.cascades.explain.InternalPlannerGraphRewritable;
 import com.apple.foundationdb.record.query.plan.cascades.explain.NodeInfo;
 import com.apple.foundationdb.record.query.plan.cascades.explain.PlannerGraph;
 import com.apple.foundationdb.record.query.plan.cascades.values.Value;
-import com.apple.foundationdb.record.query.plan.cascades.values.translation.TranslationMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -50,32 +48,19 @@ import java.util.stream.Collectors;
 @API(API.Status.EXPERIMENTAL)
 public class LogicalSortExpression implements RelationalExpressionWithChildren, InternalPlannerGraphRewritable {
     @Nonnull
-    private final RequestedOrdering ordering;
+    private final List<Value> sortValues;
+
+    private final boolean reverse;
 
     @Nonnull
     private final Quantifier inner;
 
-    public LogicalSortExpression(@Nonnull RequestedOrdering ordering, @Nonnull Quantifier inner) {
-        this.ordering = ordering;
-        this.inner = inner;
-    }
-
     public LogicalSortExpression(@Nonnull List<Value> sortValues,
                                  final boolean reverse,
                                  @Nonnull final Quantifier inner) {
-        this(buildOrdering(sortValues, reverse), inner);
-    }
-
-    @Nonnull
-    private static RequestedOrdering buildOrdering(@Nonnull List<Value> sortValues, boolean reverse) {
-        final OrderingPart.RequestedSortOrder order = OrderingPart.RequestedSortOrder.fromIsReverse(reverse);
-        final RequestedOrdering.Distinctness distinctness = RequestedOrdering.Distinctness.PRESERVE_DISTINCTNESS;
-        return new RequestedOrdering(sortValues.stream().map(value -> new OrderingPart.RequestedOrderingPart(value, order)).collect(Collectors.toList()), distinctness);
-    }
-
-    @Nonnull
-    public static LogicalSortExpression unsorted(@Nonnull final Quantifier inner) {
-        return new LogicalSortExpression(new RequestedOrdering(Collections.emptyList(), RequestedOrdering.Distinctness.PRESERVE_DISTINCTNESS), inner);
+        this.sortValues = ImmutableList.copyOf(sortValues);
+        this.reverse = reverse;
+        this.inner = inner;
     }
 
     @Nonnull
@@ -90,8 +75,12 @@ public class LogicalSortExpression implements RelationalExpressionWithChildren, 
     }
 
     @Nonnull
-    public RequestedOrdering getOrdering() {
-        return ordering;
+    public List<Value> getSortValues() {
+        return sortValues;
+    }
+
+    public boolean isReverse() {
+        return reverse;
     }
 
     @Nonnull
@@ -109,7 +98,8 @@ public class LogicalSortExpression implements RelationalExpressionWithChildren, 
     @Override
     public LogicalSortExpression translateCorrelations(@Nonnull final TranslationMap translationMap,
                                                        @Nonnull final List<? extends Quantifier> translatedQuantifiers) {
-        return new LogicalSortExpression(getOrdering(),
+        return new LogicalSortExpression(getSortValues(),
+                isReverse(),
                 Iterables.getOnlyElement(translatedQuantifiers));
     }
 
@@ -132,7 +122,8 @@ public class LogicalSortExpression implements RelationalExpressionWithChildren, 
         }
 
         final LogicalSortExpression other = (LogicalSortExpression) otherExpression;
-        return ordering.equals(other.ordering);
+
+        return reverse == other.reverse && sortValues.equals(other.sortValues);
     }
 
     @SuppressWarnings("EqualsWhichDoesntCheckParameterClass")
@@ -148,13 +139,13 @@ public class LogicalSortExpression implements RelationalExpressionWithChildren, 
 
     @Override
     public int hashCodeWithoutChildren() {
-        return ordering.hashCode();
+        return Objects.hash(getSortValues(), isReverse());
     }
 
     @Nonnull
     @Override
     public PlannerGraph rewriteInternalPlannerGraph(@Nonnull final List<? extends PlannerGraph> childGraphs) {
-        if (ordering.isPreserve()) {
+        if (sortValues.isEmpty()) {
             return PlannerGraph.fromNodeAndChildGraphs(
                     new PlannerGraph.LogicalOperatorNodeWithInfo(this,
                             NodeInfo.SORT_OPERATOR,
@@ -166,7 +157,7 @@ public class LogicalSortExpression implements RelationalExpressionWithChildren, 
                     new PlannerGraph.LogicalOperatorNodeWithInfo(this,
                             NodeInfo.SORT_OPERATOR,
                             ImmutableList.of("BY {{expression}}"),
-                            ImmutableMap.of("expression", Attribute.gml(ordering.toString()))),
+                            ImmutableMap.of("expression", Attribute.gml(sortValues.stream().map(Value::toString).collect(Collectors.joining(", "))))),
                     childGraphs);
 
         }
