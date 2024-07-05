@@ -24,6 +24,7 @@ import com.apple.foundationdb.record.query.plan.cascades.CorrelationIdentifier;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.SetMultimap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -132,5 +133,26 @@ public class DependencyUtils {
             }
         }
         return builder.build();
+    }
+
+    @Nonnull
+    public static <T> SetMultimap<T, T> cleanseDependencyMap(@Nonnull final Set<T> set, @Nonnull final SetMultimap<T, T> dependencyMap) {
+        boolean needsCopy = false;
+        final ImmutableSetMultimap.Builder<T, T> cleanDependencyMapBuilder = ImmutableSetMultimap.builder();
+
+        for (final Map.Entry<T, T> entry : dependencyMap.entries()) {
+            final T key = entry.getKey();
+            final T value = entry.getValue();
+            if (set.contains(key) && set.contains(value)) {
+                cleanDependencyMapBuilder.put(key, entry.getValue());
+            } else {
+                // There is an entry we don't want in the dependency map.
+                needsCopy = true;
+            }
+        }
+        if (needsCopy) {
+            return cleanDependencyMapBuilder.build();
+        }
+        return dependencyMap;
     }
 }

@@ -290,11 +290,10 @@ public abstract class RecordQueryIntersectionPlan implements RecordQueryPlanWith
 
     @Nonnull
     public static RecordQueryIntersectionOnValuesPlan fromQuantifiers(@Nonnull final List<Quantifier.Physical> quantifiers,
-                                                                      @Nonnull final List<? extends Value> comparisonKeyValues,
-                                                                      final boolean isReverse) {
+                                                                      @Nonnull final List<? extends Value> comparisonKeyValues) {
         return RecordQueryIntersectionOnValuesPlan.intersection(quantifiers,
                 comparisonKeyValues,
-                isReverse);
+                Quantifiers.isReversed(quantifiers));
     }
 
     /**
@@ -310,9 +309,9 @@ public abstract class RecordQueryIntersectionPlan implements RecordQueryPlanWith
      * @return a new plan that will return the intersection of all results from both child plans
      */
     @Nonnull
-    public static RecordQueryIntersectionOnKeyExpressionPlan from(@Nonnull final RecordQueryPlan left,
-                                                                  @Nonnull final RecordQueryPlan right,
-                                                                  @Nonnull final KeyExpression comparisonKey) {
+    public static RecordQueryIntersectionOnKeyExpressionPlan from(@Nonnull RecordQueryPlan left,
+                                                                  @Nonnull RecordQueryPlan right,
+                                                                  @Nonnull KeyExpression comparisonKey) {
         if (left.isReverse() != right.isReverse()) {
             throw new RecordCoreArgumentException("left plan and right plan for union do not have same value for reverse field");
         }
@@ -332,8 +331,7 @@ public abstract class RecordQueryIntersectionPlan implements RecordQueryPlanWith
      * @return a new plan that will return the intersection of all results from both child plans
      */
     @Nonnull
-    public static RecordQueryIntersectionOnKeyExpressionPlan from(@Nonnull final List<? extends RecordQueryPlan> children,
-                                                                  @Nonnull final KeyExpression comparisonKey) {
+    public static RecordQueryIntersectionOnKeyExpressionPlan from(@Nonnull List<? extends RecordQueryPlan> children, @Nonnull KeyExpression comparisonKey) {
         if (children.size() < 2) {
             throw new RecordCoreArgumentException("fewer than two children given to union plan");
         }

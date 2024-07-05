@@ -389,7 +389,6 @@ public abstract class RecordQueryInUnionPlan implements RecordQueryPlanWithChild
      * @param inner the input/inner plan to this in-union
      * @param inSources a list of outer in-sources
      * @param comparisonKeyValues values by which the results of both plans are ordered
-     * @param isReverse indicator if {@code comparisonKeyValues} should be considered reversed (inverted).
      * @param maxNumberOfValuesAllowed maximum number of parallel legs of this in-union
      * @param internal indicator if bindings are modelled using correlation or old-style in-bindings
      * @return a new plan that will return the union of all results from both child plans
@@ -398,13 +397,12 @@ public abstract class RecordQueryInUnionPlan implements RecordQueryPlanWithChild
     public static RecordQueryInUnionOnValuesPlan from(@Nonnull final Quantifier.Physical inner,
                                                       @Nonnull final List<? extends InSource> inSources,
                                                       @Nonnull final List<? extends Value> comparisonKeyValues,
-                                                      final boolean isReverse,
                                                       final int maxNumberOfValuesAllowed,
                                                       @Nonnull final Bindings.Internal internal) {
         return RecordQueryInUnionOnValuesPlan.inUnion(inner,
                 inSources,
                 comparisonKeyValues,
-                isReverse,
+                Quantifiers.isReversed(ImmutableList.of(inner)),
                 maxNumberOfValuesAllowed,
                 internal);
     }

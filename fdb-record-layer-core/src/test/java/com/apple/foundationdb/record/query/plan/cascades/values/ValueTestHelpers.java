@@ -21,7 +21,6 @@
 package com.apple.foundationdb.record.query.plan.cascades.values;
 
 import com.apple.foundationdb.record.query.plan.cascades.Column;
-import com.apple.foundationdb.record.query.plan.cascades.Quantifier;
 import com.apple.foundationdb.record.query.plan.cascades.typing.Type;
 import com.google.common.collect.ImmutableList;
 
@@ -50,12 +49,6 @@ public class ValueTestHelpers {
                         Column.of(Type.Record.Field.of(Type.primitiveType(Type.TypeCode.STRING), Optional.of("x")),
                                 LiteralValue.ofScalar("fieldValueX")));
         return RecordConstructorValue.ofColumns(columns);
-    }
-
-    @Nonnull
-    public static QuantifiedObjectValue qov() {
-        final var resultType = rcv().getResultType();
-        return QuantifiedObjectValue.of(Quantifier.current(), resultType);
     }
 
     @Nonnull

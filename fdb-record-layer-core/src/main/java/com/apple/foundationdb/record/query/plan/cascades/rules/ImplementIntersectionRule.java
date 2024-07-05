@@ -23,7 +23,6 @@ package com.apple.foundationdb.record.query.plan.cascades.rules;
 import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.query.plan.cascades.CascadesRule;
 import com.apple.foundationdb.record.query.plan.cascades.CascadesRuleCall;
-import com.apple.foundationdb.record.query.plan.cascades.Quantifiers;
 import com.apple.foundationdb.record.query.plan.cascades.Reference;
 import com.apple.foundationdb.record.query.plan.cascades.PlanPartition;
 import com.apple.foundationdb.record.query.plan.cascades.PropertiesMap;
@@ -95,7 +94,6 @@ public class ImplementIntersectionRule extends CascadesRule<LogicalIntersectionE
                         .map(Quantifier::physical)
                         .collect(ImmutableList.toImmutableList());
 
-        call.yieldExpression(RecordQueryIntersectionPlan.fromQuantifiers(newQuantifiers,
-                logicalIntersectionExpression.getComparisonKeyValues(), Quantifiers.isReversed(newQuantifiers)));
+        call.yieldExpression(RecordQueryIntersectionPlan.fromQuantifiers(newQuantifiers, logicalIntersectionExpression.getComparisonKeyValues()));
     }
 }
