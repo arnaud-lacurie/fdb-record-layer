@@ -388,6 +388,18 @@ public class BaseVisitor extends AbstractParseTreeVisitor<Object> implements Typ
         return ddlVisitor.visitIndexDefinition(ctx);
     }
 
+    @Nonnull
+    @Override
+    public Object visitFunctionDefinition(@Nonnull RelationalParser.FunctionDefinitionContext ctx) {
+        return ddlVisitor.visitFunctionDefinition(ctx);
+    }
+
+    @Nonnull
+    @Override
+    public Object visitUserDefinedFunctionCall(@Nonnull RelationalParser.UserDefinedFunctionCallContext ctx) {
+        return visitChildren(ctx);
+    }
+
     @Override
     public Object visitIndexAttributes(RelationalParser.IndexAttributesContext ctx) {
         return visitChildren(ctx);
