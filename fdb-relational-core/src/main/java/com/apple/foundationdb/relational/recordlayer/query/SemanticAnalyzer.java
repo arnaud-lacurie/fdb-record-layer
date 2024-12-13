@@ -371,7 +371,7 @@ public class SemanticAnalyzer {
                         continue;
                     }
                 }
-                final var nestedFieldMaybe = resolveIdentifierInType(referenceIdentifier, attribute, operator, matchQualifiedOnly);
+                final var nestedFieldMaybe = lookUpNestedField(referenceIdentifier, attribute, operator, matchQualifiedOnly);
                 if (nestedFieldMaybe.isPresent()) {
                     matchedAttributes.add(nestedFieldMaybe.get());
                     checkForPseudoColumns = false;
@@ -411,10 +411,10 @@ public class SemanticAnalyzer {
     }
 
     @Nonnull
-    public Optional<Expression> resolveIdentifierInType(@Nonnull Identifier requestedIdentifier,
-                                                        @Nonnull Expression existingExpression,
-                                                        @Nonnull LogicalOperator logicalOperator,
-                                                        boolean matchQualifiedOnly) {
+    public Optional<Expression> lookUpNestedField(@Nonnull Identifier requestedIdentifier,
+                                                  @Nonnull Expression existingExpression,
+                                                  @Nonnull LogicalOperator logicalOperator,
+                                                  boolean matchQualifiedOnly) {
         if (existingExpression.getName().isEmpty() || requestedIdentifier.fullyQualifiedName().size() <= 1) {
             return Optional.empty();
         }
@@ -466,9 +466,9 @@ public class SemanticAnalyzer {
     }
 
     @Nonnull
-    public Optional<Value> resolveIdentifierInType(@Nonnull Identifier requestedIdentifier,
-                                                       @Nonnull Identifier paramId,
-                                                       @Nonnull ObjectValue objectValue) {
+    public Optional<Value> lookUpNestedField(@Nonnull Identifier requestedIdentifier,
+                                             @Nonnull Identifier paramId,
+                                             @Nonnull ObjectValue objectValue) {
         Assert.thatUnchecked(requestedIdentifier.prefixedWith(paramId), "Invalid function definition");
 
         if (requestedIdentifier.fullyQualifiedName().size() == paramId.fullyQualifiedName().size()) {
