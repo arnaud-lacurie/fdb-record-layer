@@ -1182,6 +1182,12 @@ public class DelegatingVisitor<D extends TypedVisitor> implements TypedVisitor {
 
     @Nonnull
     @Override
+    public Object visitUserDefinedFunctionName(@Nonnull RelationalParser.UserDefinedFunctionNameContext ctx) {
+        return getDelegate().visitUserDefinedFunctionName(ctx);
+    }
+
+    @Nonnull
+    @Override
     public Expressions visitFunctionArgs(@Nonnull RelationalParser.FunctionArgsContext ctx) {
         return getDelegate().visitFunctionArgs(ctx);
     }
