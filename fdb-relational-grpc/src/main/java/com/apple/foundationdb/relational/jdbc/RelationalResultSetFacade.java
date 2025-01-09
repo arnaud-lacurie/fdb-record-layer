@@ -263,6 +263,7 @@ class RelationalResultSetFacade implements RelationalResultSet {
     @ExcludeFromJacocoGeneratedReport
     @Nonnull
     public Continuation getContinuation() throws SQLException {
+        // TODO: Fail if the result set is not exhausted
         return new RelationalRpcContinuation(delegate.getContinuation());
     }
 
