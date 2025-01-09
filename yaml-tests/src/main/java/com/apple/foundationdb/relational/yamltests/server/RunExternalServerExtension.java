@@ -42,7 +42,6 @@ import java.util.jar.Manifest;
  * @RegisterExtension
  * static final RunExternalServerExtension = new RunExternalServerExtension();
  *     }</pre>
- * </p>
  */
 public class RunExternalServerExtension implements BeforeAllCallback, AfterAllCallback {
 
