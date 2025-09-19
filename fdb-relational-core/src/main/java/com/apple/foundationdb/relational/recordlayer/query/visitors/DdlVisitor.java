@@ -21,6 +21,9 @@
 package com.apple.foundationdb.relational.recordlayer.query.visitors;
 
 import com.apple.foundationdb.annotation.API;
+import com.apple.foundationdb.record.metadata.Key;
+import com.apple.foundationdb.record.metadata.IndexTypes;
+import com.apple.foundationdb.record.metadata.expressions.KeyExpression;
 import com.apple.foundationdb.record.query.plan.cascades.expressions.LogicalSortExpression;
 import com.apple.foundationdb.record.query.plan.cascades.values.PromoteValue;
 import com.apple.foundationdb.record.query.plan.cascades.values.ThrowsValue;
@@ -30,7 +33,6 @@ import com.apple.foundationdb.relational.api.exceptions.ErrorCode;
 import com.apple.foundationdb.relational.api.metadata.DataType;
 import com.apple.foundationdb.relational.api.metadata.InvokedRoutine;
 import com.apple.foundationdb.relational.generated.RelationalParser;
-import com.apple.foundationdb.relational.recordlayer.metadata.DataTypeUtils;
 import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerColumn;
 import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerIndex;
 import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerInvokedRoutine;
@@ -41,11 +43,13 @@ import com.apple.foundationdb.relational.recordlayer.query.Expressions;
 import com.apple.foundationdb.relational.recordlayer.query.Identifier;
 import com.apple.foundationdb.relational.recordlayer.query.IndexGenerator;
 import com.apple.foundationdb.relational.recordlayer.query.LogicalOperator;
+import com.apple.foundationdb.relational.recordlayer.query.ParseHelpers;
 import com.apple.foundationdb.relational.recordlayer.query.PreparedParams;
 import com.apple.foundationdb.relational.recordlayer.query.ProceduralPlan;
 import com.apple.foundationdb.relational.recordlayer.query.QueryParser;
 import com.apple.foundationdb.relational.recordlayer.query.SemanticAnalyzer;
 import com.apple.foundationdb.relational.recordlayer.query.functions.CompiledSqlFunction;
+import com.apple.foundationdb.relational.recordlayer.metadata.DataTypeUtils;
 import com.apple.foundationdb.relational.util.Assert;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -182,8 +186,20 @@ public final class DdlVisitor extends DelegatingVisitor<BaseVisitor> {
     }
 
     @Nonnull
-    @Override
     public RecordLayerIndex visitIndexDefinition(@Nonnull RelationalParser.IndexDefinitionContext ctx) {
+        // Dispatch to the appropriate visitor based on the actual context type
+        if (ctx instanceof RelationalParser.IndexAsSelectDefinitionContext) {
+            return visitIndexAsSelectDefinition((RelationalParser.IndexAsSelectDefinitionContext) ctx);
+        } else if (ctx instanceof RelationalParser.IndexOnTableDefinitionContext) {
+            return visitIndexOnTableDefinition((RelationalParser.IndexOnTableDefinitionContext) ctx);
+        } else {
+            throw new IllegalArgumentException("Unknown index definition context type: " + ctx.getClass());
+        }
+    }
+
+    @Nonnull
+    @Override
+    public RecordLayerIndex visitIndexAsSelectDefinition(@Nonnull RelationalParser.IndexAsSelectDefinitionContext ctx) {
         final var indexId = visitUid(ctx.indexName);
 
         final var ddlCatalog = metadataBuilder.build();
@@ -198,6 +214,85 @@ public final class DdlVisitor extends DelegatingVisitor<BaseVisitor> {
         final var table = metadataBuilder.findTable(generator.getRecordTypeName());
         Assert.thatUnchecked(viewPlan instanceof LogicalSortExpression, ErrorCode.INVALID_COLUMN_REFERENCE, "Cannot create index and order by an expression that is not present in the projection list");
         return generator.generate(indexId.getName(), isUnique, table.getType(), containsNullableArray);
+    }
+
+    @Nonnull
+    @Override
+    public RecordLayerIndex visitIndexOnTableDefinition(@Nonnull RelationalParser.IndexOnTableDefinitionContext ctx) {
+        final var indexId = visitUid(ctx.indexName);
+        final var tableName = visitUid(ctx.tableName().fullId().uid(0));
+        final var isUnique = ctx.UNIQUE() != null;
+
+        // Build KeyExpression directly from DDL syntax - no SQL generation needed
+        final var keyExpression = buildKeyExpressionFromDdl(ctx);
+
+        return RecordLayerIndex.newBuilder()
+                .setName(indexId.getName())
+                .setTableName(tableName.getName())
+                .setIndexType(IndexTypes.VALUE)
+                .setKeyExpression(keyExpression)
+                .setUnique(isUnique)
+                .build();
+    }
+
+    private KeyExpression buildKeyExpressionFromDdl(@Nonnull RelationalParser.IndexOnTableDefinitionContext ctx) {
+        final var columnSpecs = ctx.indexColumnList().indexColumnSpec();
+        final List<KeyExpression> indexedExpressions = new ArrayList<>();
+        final List<String> includeColumns = new ArrayList<>();
+
+        // Extract indexed columns with ASC/DESC and NULLS FIRST/LAST ordering
+        for (final var spec : columnSpecs) {
+            final var columnName = visitUid(spec.columnName).getName();
+            final var fieldExpression = Key.Expressions.field(columnName);
+
+            // Check if orderClause is specified
+            if (spec.orderClause() != null) {
+                final boolean isDesc = ParseHelpers.isDescending(spec.orderClause());
+                final boolean nullsLast = ParseHelpers.isNullsLast(spec.orderClause(), isDesc);
+
+                if (isDesc) {
+                    if (nullsLast) {
+                        indexedExpressions.add(Key.Expressions.function("order_desc_nulls_last", fieldExpression));
+                    } else {
+                        indexedExpressions.add(Key.Expressions.function("order_desc_nulls_first", fieldExpression));
+                    }
+                } else {
+                    if (nullsLast) {
+                        indexedExpressions.add(Key.Expressions.function("order_asc_nulls_last", fieldExpression));
+                    } else {
+                        indexedExpressions.add(fieldExpression);
+                    }
+                }
+            } else {
+                // No ordering specified - ASC NULLS FIRST (default)
+                indexedExpressions.add(fieldExpression);
+            }
+        }
+
+        // Extract INCLUDE columns
+        if (ctx.includeClause() != null) {
+            final var includeColumnCtxs = ctx.includeClause().uidList().uid();
+            for (final var includeColumnCtx : includeColumnCtxs) {
+                final var columnName = visitUid(includeColumnCtx).getName();
+                includeColumns.add(columnName);
+            }
+        }
+
+        // Combine indexed expressions + include columns for KeyExpression
+        final List<KeyExpression> allExpressions = new ArrayList<>(indexedExpressions);
+        for (final var includeColumn : includeColumns) {
+            allExpressions.add(Key.Expressions.field(includeColumn));
+        }
+
+        if (allExpressions.size() == 1) {
+            return allExpressions.get(0);
+        } else {
+            if (!includeColumns.isEmpty()) {
+                return Key.Expressions.keyWithValue(Key.Expressions.concat(allExpressions), indexedExpressions.size());
+            } else {
+                return Key.Expressions.concat(allExpressions);
+            }
+        }
     }
 
     @Nonnull

@@ -320,4 +320,9 @@ public class YamlIntegrationTests {
     public void encryptedTest(YamlTest.Runner runner) throws Exception {
         runner.runYamsql("encrypted.yamsql");
     }
+
+    @TestTemplate
+    public void alternateIndexSyntax(YamlTest.Runner runner) throws Exception {
+        runner.runYamsql("alternate-index-syntax.yamsql");
+    }
 }

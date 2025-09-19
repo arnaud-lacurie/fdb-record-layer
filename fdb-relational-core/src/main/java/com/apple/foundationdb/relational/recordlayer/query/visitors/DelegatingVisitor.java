@@ -232,12 +232,6 @@ public class DelegatingVisitor<D extends TypedVisitor> implements TypedVisitor {
 
     @Nonnull
     @Override
-    public RecordLayerIndex visitIndexDefinition(@Nonnull RelationalParser.IndexDefinitionContext ctx) {
-        return getDelegate().visitIndexDefinition(ctx);
-    }
-
-    @Nonnull
-    @Override
     public Object visitIndexAttributes(@Nonnull RelationalParser.IndexAttributesContext ctx) {
         return getDelegate().visitIndexAttributes(ctx);
     }
@@ -523,6 +517,36 @@ public class DelegatingVisitor<D extends TypedVisitor> implements TypedVisitor {
     @Override
     public OrderByExpression visitOrderByExpression(@Nonnull RelationalParser.OrderByExpressionContext ctx) {
         return getDelegate().visitOrderByExpression(ctx);
+    }
+
+    @Nonnull
+    @Override
+    public RecordLayerIndex visitIndexAsSelectDefinition(@Nonnull RelationalParser.IndexAsSelectDefinitionContext ctx) {
+        return getDelegate().visitIndexAsSelectDefinition(ctx);
+    }
+
+    @Nonnull
+    @Override
+    public RecordLayerIndex visitIndexOnTableDefinition(@Nonnull RelationalParser.IndexOnTableDefinitionContext ctx) {
+        return getDelegate().visitIndexOnTableDefinition(ctx);
+    }
+
+    @Nonnull
+    @Override
+    public Object visitIndexColumnList(@Nonnull RelationalParser.IndexColumnListContext ctx) {
+        return getDelegate().visitIndexColumnList(ctx);
+    }
+
+    @Nonnull
+    @Override
+    public Object visitIndexColumnSpec(@Nonnull RelationalParser.IndexColumnSpecContext ctx) {
+        return getDelegate().visitIndexColumnSpec(ctx);
+    }
+
+    @Nonnull
+    @Override
+    public Object visitIncludeClause(@Nonnull RelationalParser.IncludeClauseContext ctx) {
+        return getDelegate().visitIncludeClause(ctx);
     }
 
     @Override
@@ -1547,6 +1571,11 @@ public class DelegatingVisitor<D extends TypedVisitor> implements TypedVisitor {
     @Override
     public Object visitChildren(RuleNode node) {
         return getDelegate().visitChildren(node);
+    }
+
+    @Override
+    public Object visitOrderClause(@Nonnull RelationalParser.OrderClauseContext ctx) {
+        return getDelegate().visitOrderClause(ctx);
     }
 
     @Override

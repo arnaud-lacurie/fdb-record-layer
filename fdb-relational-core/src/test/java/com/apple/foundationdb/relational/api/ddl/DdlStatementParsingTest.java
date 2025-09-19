@@ -24,6 +24,7 @@ import com.apple.foundationdb.record.expressions.RecordKeyExpressionProto;
 import com.apple.foundationdb.record.metadata.expressions.KeyExpression;
 import com.apple.foundationdb.record.metadata.expressions.ThenKeyExpression;
 import com.apple.foundationdb.relational.api.Options;
+import com.apple.foundationdb.relational.api.ddl.IndexTest.IndexedColumn;
 import com.apple.foundationdb.relational.api.exceptions.ErrorCode;
 import com.apple.foundationdb.relational.api.exceptions.RelationalException;
 import com.apple.foundationdb.relational.api.metadata.Index;
@@ -50,6 +51,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -59,6 +61,7 @@ import javax.annotation.Nullable;
 import java.net.URI;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
@@ -70,6 +73,7 @@ import java.util.stream.Stream;
  * that the underlying execution is correct, only that the language is parsed as expected.
  */
 public class DdlStatementParsingTest {
+
     @RegisterExtension
     @Order(0)
     public final EmbeddedRelationalExtension relationalExtension = new EmbeddedRelationalExtension();
@@ -98,7 +102,9 @@ public class DdlStatementParsingTest {
         final List<String> items = List.of(validPrimitiveDataTypes);
 
         final PermutationIterator<String> permutations = PermutationIterator.generatePermutations(items, numColumns);
-        return permutations.stream().map(Arguments::of);
+        return permutations.stream()
+                .flatMap(permutation -> Arrays.stream(IndexTest.IndexSyntax.values())
+                        .map(syntax -> Arguments.of(syntax, permutation)));
     }
 
     void shouldFailWith(@Nonnull final String query, @Nullable final ErrorCode errorCode) throws Exception {
@@ -162,25 +168,28 @@ public class DdlStatementParsingTest {
         return asRecordLayerSchemaTemplate.toRecordMetadata().toProto().getRecords();
     }
 
-    @Test
-    void indexFailsWithNonExistingTable() throws Exception {
+    @EnumSource(IndexTest.IndexSyntax.class)
+    @ParameterizedTest
+    void indexFailsWithNonExistingTable(IndexTest.IndexSyntax indexSyntax) throws Exception {
         final String stmt = "CREATE SCHEMA TEMPLATE test_template " +
-                "CREATE INDEX t_idx as select a from foo";
+                IndexTest.index(indexSyntax, "t_idx", List.of(new IndexedColumn("a")), List.of(), "foo");
         shouldFailWith(stmt, ErrorCode.INVALID_SCHEMA_TEMPLATE);
     }
 
-    @Test
-    void indexFailsWithNonExistingIndexColumn() throws Exception {
+    @EnumSource(IndexTest.IndexSyntax.class)
+    @ParameterizedTest
+    void indexFailsWithNonExistingIndexColumn(IndexTest.IndexSyntax indexSyntax) throws Exception {
         final String stmt = "CREATE SCHEMA TEMPLATE test_template " +
-                "CREATE TABLE foo(a bigint, PRIMARY KEY(a))" +
-                " CREATE INDEX t_idx as select non_existing from foo";
+                "CREATE TABLE foo(a bigint, PRIMARY KEY(a)) " +
+                IndexTest.index(indexSyntax, "t_idx", List.of(new IndexedColumn("non_existing")), List.of(), "foo");
         shouldFailWith(stmt, ErrorCode.UNDEFINED_COLUMN);
     }
 
-    @Test
-    void indexFailsWithReservedKeywordAsName() throws Exception {
+    @EnumSource(IndexTest.IndexSyntax.class)
+    @ParameterizedTest
+    void indexFailsWithReservedKeywordAsName(IndexTest.IndexSyntax indexSyntax) throws Exception {
         final String stmt = "CREATE SCHEMA TEMPLATE test_template " +
-                "CREATE INDEX table as select a from foo";
+                IndexTest.index(indexSyntax, "table", List.of(new IndexedColumn("a")), List.of(), "foo");
         shouldFailWith(stmt, ErrorCode.SYNTAX_ERROR);
     }
 
@@ -335,7 +344,7 @@ public class DdlStatementParsingTest {
 
     @ParameterizedTest
     @MethodSource("columnTypePermutations")
-    void createSchemaTemplateWithOutOfOrderDefinitionsWork(List<String> columns) throws Exception {
+    void createSchemaTemplateWithOutOfOrderDefinitionsWork(IndexTest.IndexSyntax indexSyntax, List<String> columns) throws Exception {
         final String templateStatement = "CREATE SCHEMA TEMPLATE test_template " +
                 "CREATE TABLE TBL " + makeColumnDefinition(columns, true) +
                 "CREATE TYPE AS STRUCT FOO " + makeColumnDefinition(columns, false);
@@ -356,7 +365,7 @@ public class DdlStatementParsingTest {
     /*Schema Template tests*/
     @ParameterizedTest
     @MethodSource("columnTypePermutations")
-    void createSchemaTemplates(List<String> columns) throws Exception {
+    void createSchemaTemplates(IndexTest.IndexSyntax indexSyntax, List<String> columns) throws Exception {
         final String columnStatement = "CREATE SCHEMA TEMPLATE test_template " +
                 " CREATE TYPE AS STRUCT FOO " + makeColumnDefinition(columns, false) +
                 " CREATE TABLE BAR (col0 bigint, col1 FOO, PRIMARY KEY(col0))";
@@ -382,7 +391,7 @@ public class DdlStatementParsingTest {
 
     @ParameterizedTest
     @MethodSource("columnTypePermutations")
-    void createSchemaTemplateTableWithOnlyRecordType(List<String> columns) throws Exception {
+    void createSchemaTemplateTableWithOnlyRecordType(IndexTest.IndexSyntax indexSyntax, List<String> columns) throws Exception {
         final String baseTableDef = makeColumnDefinition(columns, false).replace(")", ", SINGLE ROW ONLY)");
         final String columnStatement = "CREATE SCHEMA TEMPLATE test_template  " +
                 "CREATE TABLE FOO " + baseTableDef;
@@ -409,12 +418,12 @@ public class DdlStatementParsingTest {
 
     @ParameterizedTest
     @MethodSource("columnTypePermutations")
-    void createSchemaTemplateWithDuplicateIndexesFails(List<String> columns) throws Exception {
+    void createSchemaTemplateWithDuplicateIndexesFails(IndexTest.IndexSyntax indexSyntax, List<String> columns) throws Exception {
         final String baseTableDef = makeColumnDefinition(columns, true);
         final String columnStatement = "CREATE SCHEMA TEMPLATE test_template " +
                 "CREATE TABLE FOO " + baseTableDef +
-                " CREATE INDEX foo_idx as select col0 from foo order by col0" +
-                " CREATE INDEX foo_idx as select col1 from foo order by col1"; //duplicate with the same name  on same table should fail
+                IndexTest.index(indexSyntax, "foo_idx", List.of(new IndexedColumn("col0")), List.of(), "foo") +
+                IndexTest.index(indexSyntax, "foo_idx", List.of(new IndexedColumn("col1")), List.of(), "foo"); //duplicate with the same name  on same table should fail
 
         shouldFailWithInjectedFactory(columnStatement, ErrorCode.INDEX_ALREADY_EXISTS, new AbstractMetadataOperationsFactory() {
             @Nonnull
@@ -430,12 +439,12 @@ public class DdlStatementParsingTest {
 
     @ParameterizedTest
     @MethodSource("columnTypePermutations")
-    void createSchemaTemplateWithIndex(List<String> columns) throws Exception {
-        final String indexColumns = String.join(",", chooseIndexColumns(columns, n -> n % 2 == 0));
+    void createSchemaTemplateWithIndex(IndexTest.IndexSyntax indexSyntax, List<String> columns) throws Exception {
+        final List<String> indexColumns = chooseIndexColumns(columns, n -> n % 2 == 0);
         final String templateStatement = "CREATE SCHEMA TEMPLATE test_template  " +
                 "CREATE TYPE AS STRUCT FOO " + makeColumnDefinition(columns, false) +
                 "CREATE TABLE TBL " + makeColumnDefinition(columns, true) +
-                "CREATE INDEX v_idx as select " + indexColumns + " from tbl order by " + indexColumns;
+                IndexTest.index(indexSyntax, "v_idx", indexColumns.stream().map(IndexedColumn::new).collect(Collectors.toList()), List.of(), "tbl");
 
         shouldWorkWithInjectedFactory(templateStatement, new AbstractMetadataOperationsFactory() {
             @Nonnull
@@ -476,14 +485,14 @@ public class DdlStatementParsingTest {
 
     @ParameterizedTest
     @MethodSource("columnTypePermutations")
-    void createSchemaTemplateWithIndexAndInclude(List<String> columns) throws Exception {
+    void createSchemaTemplateWithIndexAndInclude(IndexTest.IndexSyntax indexSyntax, List<String> columns) throws Exception {
         Assumptions.assumeTrue(columns.size() > 1); //the test only works with multiple columns
         final List<String> indexedColumns = chooseIndexColumns(columns, n -> n % 2 == 0); //choose every other column
         final List<String> unindexedColumns = chooseIndexColumns(columns, n -> n % 2 != 0);
         final String templateStatement = "CREATE SCHEMA TEMPLATE test_template " +
                 " CREATE TYPE AS STRUCT FOO " + makeColumnDefinition(columns, false) +
                 " CREATE TABLE TBL " + makeColumnDefinition(columns, true) +
-                " CREATE INDEX v_idx as select " + Stream.concat(indexedColumns.stream(), unindexedColumns.stream()).collect(Collectors.joining(",")) + " from tbl order by " + String.join(",", indexedColumns);
+                IndexTest.index(indexSyntax, "v_idx", indexedColumns.stream().map(IndexedColumn::new).collect(Collectors.toList()), unindexedColumns, "tbl");
         shouldWorkWithInjectedFactory(templateStatement, new AbstractMetadataOperationsFactory() {
             @Nonnull
             @Override
@@ -584,7 +593,7 @@ public class DdlStatementParsingTest {
 
     @ParameterizedTest
     @MethodSource("columnTypePermutations")
-    void createTable(List<String> columns) throws Exception {
+    void createTable(IndexTest.IndexSyntax indexSyntax, List<String> columns) throws Exception {
         final String columnStatement = "CREATE SCHEMA TEMPLATE test_template CREATE TABLE FOO " +
                 makeColumnDefinition(columns, true);
         shouldWorkWithInjectedFactory(columnStatement, new AbstractMetadataOperationsFactory() {
@@ -609,7 +618,7 @@ public class DdlStatementParsingTest {
 
     @ParameterizedTest
     @MethodSource("columnTypePermutations")
-    void createTableAndType(List<String> columns) throws Exception {
+    void createTableAndType(IndexTest.IndexSyntax indexSyntax, List<String> columns) throws Exception {
         final String tableDef = "CREATE TABLE tbl " + makeColumnDefinition(columns, true);
         final String typeDef = "CREATE TYPE AS STRUCT typ " + makeColumnDefinition(columns, false);
         final String templateStatement = "CREATE SCHEMA TEMPLATE test_template " +
