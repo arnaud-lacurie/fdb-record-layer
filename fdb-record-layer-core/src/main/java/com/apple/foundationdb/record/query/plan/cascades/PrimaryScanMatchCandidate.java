@@ -22,6 +22,7 @@ package com.apple.foundationdb.record.query.plan.cascades;
 
 import com.apple.foundationdb.record.metadata.RecordType;
 import com.apple.foundationdb.record.metadata.expressions.KeyExpression;
+import com.apple.foundationdb.record.query.expressions.Comparisons;
 import com.apple.foundationdb.record.query.plan.ScanComparisons;
 import com.apple.foundationdb.record.query.plan.cascades.typing.Type;
 import com.apple.foundationdb.record.query.plan.cascades.values.Value;
@@ -31,11 +32,14 @@ import com.apple.foundationdb.record.query.plan.plans.RecordQueryTypeFilterPlan;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -170,6 +174,63 @@ public class PrimaryScanMatchCandidate implements MatchCandidate, ValueIndexLike
     @Override
     public boolean isUnique() {
         return true;
+    }
+
+    /**
+     * Overrides the default {@link MatchCandidate#computeBoundParameterPrefixMap} to handle the common case where
+     * the primary key starts with a {@code recordType()} component (non-intermingled schemas). In that case, the type
+     * restriction is expressed via a {@code LogicalTypeFilterExpression} rather than a WHERE predicate, so the first
+     * sargable alias is never present in the parameter binding map and the default implementation would return an empty
+     * map, resulting in a full-table scan.
+     *
+     * <p>When there is exactly one queried record type and its primary key starts with {@code recordType()}, this
+     * method injects an implicit equality range for that first alias (keyed to the record type's discriminator value)
+     * and then continues the standard prefix-scan logic for the remaining user-defined PK columns.</p>
+     */
+    @Nonnull
+    @Override
+    public Map<CorrelationIdentifier, ComparisonRange> computeBoundParameterPrefixMap(@Nonnull final MatchInfo matchInfo) {
+        final var parameterBindingMap = matchInfo.getRegularMatchInfo().getParameterBindingMap();
+        final var prefixMap = Maps.<CorrelationIdentifier, ComparisonRange>newHashMap();
+
+        int startIdx = 0;
+        // For non-intermingled schemas the first PK component is recordType(). The type restriction
+        // comes from LogicalTypeFilterExpression, not a WHERE predicate, so the first alias is never
+        // in parameterBindingMap. When exactly one type is queried, inject an implicit equality for
+        // the recordType() discriminator so downstream code can produce a bounded range scan.
+        if (queriedRecordTypes.size() == 1
+                && queriedRecordTypes.get(0).primaryKeyHasRecordTypePrefix()
+                && !parameters.isEmpty()
+                && !parameterBindingMap.containsKey(parameters.get(0))) {
+            final var typeKey = queriedRecordTypes.get(0).getRecordTypeKey();
+            prefixMap.put(parameters.get(0), ComparisonRange.from(
+                    new Comparisons.SimpleComparison(Comparisons.Type.EQUALS, typeKey)));
+            startIdx = 1;
+        }
+
+        for (int i = startIdx; i < parameters.size(); i++) {
+            final var parameter = parameters.get(i);
+            final var comparisonRange = parameterBindingMap.get(parameter);
+            if (comparisonRange == null) {
+                return ImmutableMap.copyOf(prefixMap);
+            }
+            if (prefixMap.containsKey(parameter)) {
+                Verify.verify(prefixMap.get(parameter).equals(comparisonRange));
+                continue;
+            }
+            switch (comparisonRange.getRangeType()) {
+                case EQUALITY:
+                    prefixMap.put(parameter, comparisonRange);
+                    break;
+                case INEQUALITY:
+                    prefixMap.put(parameter, comparisonRange);
+                    return ImmutableMap.copyOf(prefixMap);
+                case EMPTY:
+                default:
+                    return ImmutableMap.copyOf(prefixMap);
+            }
+        }
+        return ImmutableMap.copyOf(prefixMap);
     }
 
     @Nonnull
