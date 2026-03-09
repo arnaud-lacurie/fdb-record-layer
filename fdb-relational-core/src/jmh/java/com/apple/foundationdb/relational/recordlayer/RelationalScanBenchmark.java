@@ -81,7 +81,7 @@ public class RelationalScanBenchmark extends EmbeddedRelationalBenchmark {
 
     static final URI dbUri = URI.create("/BENCHMARKS/putAndScan");
 
-    @Param({"1", "10", "100","1000"})
+    @Param({"1", "10", "100", "1000"})
     int rowCount;
 
     Driver driver = new Driver(templateName, templateDefinition);

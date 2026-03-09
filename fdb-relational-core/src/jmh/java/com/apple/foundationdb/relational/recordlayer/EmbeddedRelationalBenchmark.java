@@ -85,7 +85,7 @@ public abstract class EmbeddedRelationalBenchmark {
         }
 
         public Driver(RelationalPlanCache planCache) {
-            this(schemaTemplateName,templateDefinition,planCache);
+            this(schemaTemplateName, templateDefinition, planCache);
         }
 
         public Driver(String templateName, String templateDef) {
